@@ -10,11 +10,27 @@ from database import init_db, add_user, get_user, update_balance, process_trade,
 # Импортируем модуль для генерации случайных чисел
 import random
 
+# Используется для получения текущего курса криптовалют
+import requests
+
 # Импортируем токен бота из конфигурационного файла
 from config import BOT_TOKEN
 
 # Инициализация базы данных при запуске бота
 init_db()
+
+# Функция для получения текущего курса криптовалюты
+def get_crypto_price(symbol):
+    url = f"https://api.coingecko.com/api/v3/simple/price?ids={symbol}&vs_currencies=usd"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        return data[symbol]['usd']
+    except Exception as e:
+        print(f"Ошибка получения курса {symbol}: {e}")
+        return None
+
 
 # Обработчик команды /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -143,13 +159,15 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     # Сообщение об успешном выводе
                     await update.message.reply_text(f"✅ Вывод {amount}₽ успешно выполнен!")
                 else:
+                    # Сообщение о недостатке средств
                     await update.message.reply_text("❌ Недостаточно средств на балансе.")
+                    
         except ValueError:
             await update.message.reply_text("❌ Введите корректную сумму.")
         
         # Сбрасываем состояние "ожидание ввода суммы вывода"
         context.user_data["awaiting_withdrawal"] = False
-        return
+        return  # Важно: завершаем выполнение, чтобы не перейти к другим условиям
 
     else:
         # Если текст сообщения не распознан, отправляем сообщение с просьбой выбрать опцию
@@ -311,10 +329,50 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Убираем состояние "ожидание ввода суммы вывода"
         if "awaiting_withdrawal" in context.user_data:
             del context.user_data["awaiting_withdrawal"]
+            
+    elif query.data.startswith("update_course_"):
+        crypto_symbol = query.data.split("_")[-1]
+        crypto_name = crypto_symbol.upper()  # Можно настроить имена для каждой монеты
+        await handle_crypto_option(update, context, crypto_symbol, crypto_name)
+        
+    elif query.data == "cancel_crypto_option":
+        await query.edit_message_text("✅ Вы вернулись к выбору опционов.")
+            
+    elif query.data == "option_btc":
+        await handle_crypto_option(update, context, "bitcoin", "BITCOIN")
+    elif query.data == "option_eth":
+        await handle_crypto_option(update, context, "ethereum", "ETHEREUM")
         
     else:
         await query.edit_message_caption(caption="❌ Ошибка: пользователь не найден.", parse_mode="Markdown")
-    
+        
+# Обработчик для кнопки с опцией "BTC"
+async def handle_crypto_option(update: Update, context: ContextTypes.DEFAULT_TYPE, crypto_symbol, crypto_name):
+    query = update.callback_query
+    user_id = query.from_user.id
+    await query.answer()
+
+    # Получаем текущий курс криптовалюты
+    price = get_crypto_price(crypto_symbol)
+    user = get_user(user_id)
+
+    if price is not None and user:
+        text = (
+            f"📈 *{crypto_name} Инвестиции*\n\n"
+            f"🌐 Введите сумму, которую хотите инвестировать.\n\n"
+            f"Минимальная сумма инвестиций: 100₽\n"
+            f"Курс {crypto_name}: {price}$\n\n"
+            f"Ваш денежный баланс: {user[2]}₽"
+        )
+
+        # Создаем кнопки для обновления курса или отмены
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 Обновить курс", callback_data=f"update_course_{crypto_symbol}")],
+            [InlineKeyboardButton("❌ Отмена", callback_data="cancel_crypto_option")]
+        ])
+
+        # Обновляем сообщение с текстом и кнопками
+        await query.edit_message_text(text=text, reply_markup=keyboard, parse_mode="Markdown")
 
 # Основная функция для запуска бота
 if __name__ == "__main__":
@@ -325,6 +383,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(CallbackQueryHandler(get_crypto_price))
+    app.add_handler(CallbackQueryHandler(handle_crypto_option))
 
     # Запускаем бота в режиме polling (постоянное ожидание новых сообщений)
     app.run_polling()
