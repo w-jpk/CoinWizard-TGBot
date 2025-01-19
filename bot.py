@@ -327,6 +327,30 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await handle_graph_direction(update, context)
         return
     
+    elif context.user_data.get("state") == "WAITING_FOR_PROMO_CODE":
+        promo_code = text.strip().upper()  # Получаем введенный промокод
+
+        # Проверяем промокод
+        valid_promo_codes = {
+            "PROMO100": 100,
+            "PROMO500": 500,
+            "PROMO1000": 1000
+        }
+
+        if promo_code in valid_promo_codes:
+            bonus = valid_promo_codes[promo_code]
+            user_id = update.effective_user.id
+            dep_balance(user_id, bonus)
+
+            await update.message.reply_text(
+                f"✅ Промокод успешно активирован! Ваш баланс пополнен на {bonus}₽."
+            )
+
+            # Сбрасываем состояние
+            context.user_data["state"] = None
+        else:
+            await update.message.reply_text("❌ Неверный промокод. Попробуйте снова.")
+
     else:
         # Если текст сообщения не распознан, отправляем сообщение с просьбой выбрать опцию
         await update.message.reply_text("Я не понял ваш запрос. Попробуйте выбрать одну из доступных опций.")
@@ -346,7 +370,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("Пополнить через банковскую карту", callback_data="deposit_card")],
             # [InlineKeyboardButton("Пополнить криптовалютой", callback_data="deposit_crypto")],
-            # [InlineKeyboardButton("Ввести промокод", callback_data="deposit_promo")],
+            [InlineKeyboardButton("Ввести промокод", callback_data="deposit_promo")],
             [InlineKeyboardButton("Отмена", callback_data="cancel_deposit")]
         ])
         # Обновляем сообщение с новым текстом и кнопками
@@ -393,8 +417,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif query.data == "deposit_promo":
         # Запрашиваем ввод промокода
-        text = "🎟️ *Введите промокод:*\nПожалуйста, введите ваш промокод для активации баланса."
-        await query.edit_message_caption(caption=text, parse_mode="Markdown")
+        await query.message.reply_text("🎟️ Введите ваш промокод:")
+        context.user_data["state"] = "WAITING_FOR_PROMO_CODE"
         
     elif query.data == "my_assets":
         # Формируем текст с информацией о текущих активах
