@@ -7,6 +7,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 # Импортируем функции для работы с базой данных и обработки торгов
 from database import init_db, add_user, get_user, update_balance, process_trade, withdraw_funds, win, lose, dep_balance
 
+from admin_commands import admin_add_balance, admin_verify_user, admin_set_balance
+
 # Импортируем модуль для генерации случайных чисел
 import random
 
@@ -75,12 +77,15 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if user:
             # Путь к изображению для личного кабинета
             image = "./assets/project-1.jpg"
-            
+
+            # Определяем статус верификации
+            verification_status = "✅" if user[8] else "❌"
+
             # Формируем текст сообщения с информацией о пользователе
             caption = (
                 f"💻 Личный кабинет:\n\n"
                 f"➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
-                f"📑 Верификация: ❌\n"
+                f"📑 Верификация: {verification_status}\n"
                 f"🗄 ID: {user[0]}\n"
                 f"💵 Баланс: {user[2]}₽\n"
                 f"➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
@@ -92,7 +97,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n\n"
                 f"_Откройте двери в мир криптовалют вместе с CoinWizard - Вашим верным спутником в онлайн трейдинге на финансовых рынках._"
             )
-            
+
             # Создаем инлайн-кнопки для личного кабинета
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("💳 Пополнить", callback_data="replenish"), InlineKeyboardButton("🏦 Вывести", callback_data="withdraw")],
@@ -111,6 +116,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             # Если пользователь не найден, отправляем сообщение об ошибке
             await update.message.reply_text("Ошибка: пользователь не найден.")
+
 
     elif text == "🔷 О сервисе":
         # Формируем текст с информацией о сервисе
@@ -747,6 +753,9 @@ if __name__ == "__main__":
     app.add_handler(CallbackQueryHandler(handle_crypto_option, pattern="^update_course_|cancel_crypto_option$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_investment_amount))
     app.add_handler(CallbackQueryHandler(handle_investment_time, pattern="time_.*"))
+    app.add_handler(CommandHandler("add_balance", admin_add_balance))
+    app.add_handler(CommandHandler("verify_user", admin_verify_user))
+    app.add_handler(CommandHandler("set_balance", admin_set_balance))
 
     # Запускаем бота в режиме polling (постоянное ожидание новых сообщений)
     app.run_polling()
