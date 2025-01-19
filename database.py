@@ -25,7 +25,8 @@ def init_db():
             failed_operations INTEGER DEFAULT 0,  
             conclusions INTEGER DEFAULT 0,  
             total_withdrawn REAL DEFAULT 0,
-            verif BOOLEN DEFAULT false
+            verif BOOLEN DEFAULT false,
+            referral_status BOOLEN DEFAULT false
         )
     ''')
     
@@ -224,3 +225,21 @@ def withdraw_funds(user_id, amount):
     else:
         conn.close()
         return False  # Недостаточно средств
+    
+def update_user_referral_status(user_id, bool):
+    # Устанавливаем соединение с базой данных
+    conn = sqlite3.connect("bot.db")
+    cursor = conn.cursor()
+    
+    # Обновляем баланс пользователя, увеличиваем счетчик операций и успешных операций
+    cursor.execute('''
+        UPDATE users 
+        SET referral_status = ?
+        WHERE id = ?
+    ''', (bool, user_id))
+    
+    # Фиксируем изменения в базе данных
+    conn.commit()
+    
+    # Закрываем соединение с базой данных
+    conn.close() 

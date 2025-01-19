@@ -5,7 +5,7 @@ from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardBu
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 # Импортируем функции для работы с базой данных и обработки торгов
-from database import init_db, add_user, get_user, update_balance, process_trade, withdraw_funds, win, lose, dep_balance
+from database import init_db, add_user, get_user, update_balance, process_trade, withdraw_funds, win, lose, dep_balance, update_user_referral_status
 
 from admin_commands import admin_add_balance, admin_verify_user, admin_set_balance, admin_withdraw_funds, admin_broadcast_message, admin_get_user_info, admin_commands_list
 
@@ -18,6 +18,8 @@ import requests
 import logging
 
 import asyncio
+
+from urllib.parse import urlencode
 
 # Импортируем токен бота из конфигурационного файла
 from config import BOT_TOKEN, check
@@ -42,19 +44,55 @@ def get_crypto_price(symbol):
         print(f"Ошибка получения курса {symbol}: {e}")
         return None
 
+def generate_referral_link(user_id):
+    base_url = "https://t.me/Wizard_Coin_bot" # - замените на вашего бота
+    query_params = {"start": f"ref_{user_id}"}
+    return f"{base_url}?{urlencode(query_params)}"
 
-# Обработчик команды /start
+# Обработчик команды /start (добавляем поддержку реферальной системы)
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Получаем информацию о пользователе, который вызвал команду /start
     user = update.effective_user
-    
-    # Добавляем пользователя в базу данных, если его там еще нет
-    add_user(user.id, user.username)
+    args = context.args
+
+    # Проверяем, существует ли пользователь в базе данных
+    user_data = get_user(user.id)
+    if not user_data:
+        # Добавляем нового пользователя с инициализацией всех полей по умолчанию
+        add_user(user.id, user.username)
+        update_user_referral_status(user.id, False)  # Устанавливаем реферальный статус явно
+        user_data = get_user(user.id)  # Повторно получаем данные после добавления
+
+    # Проверяем, есть ли реферальный код
+    if args and args[0].startswith("ref_"):
+        referrer_id = int(args[0].split("_")[1])
+        referrer = get_user(referrer_id)
+
+        if referrer and not user_data[9]:  # Проверяем, использовал ли пользователь реферальный код
+            # Начисляем бонусы пользователю и рефереру
+            dep_balance(user.id, 1000)  # Новому пользователю
+            dep_balance(referrer_id, 5000)  # Создателю реферальной ссылки
+
+            # Обновляем статус пользователя, чтобы отметить использование реферального кода
+            update_user_referral_status(user.id, True)
+
+            # Уведомляем реферера
+            await context.bot.send_message(
+                chat_id=referrer_id,
+                text=(
+                    f"🎉 По вашей реферальной ссылке зарегистрировался новый пользователь!\n"
+                    f"Вы получили 5000₽ на баланс."
+                )
+            )
+        elif user_data[9]:
+            await update.message.reply_text(
+                "❌ Вы уже использовали реферальный код."
+            )
 
     # Создаем меню кнопок (Reply Keyboard) для основного интерфейса
     reply_keyboard = [
         ["💼 Личный Кабинет", "🔷 О сервисе"],
-        ["🧑🏻‍💻 Тех.Поддержка", "📊 Опционы"]
+        ["🧑🏻‍💻 Тех.Поддержка", "📊 Опционы"],
+        ["🎁 Моя реферальная ссылка"]
     ]
     reply_markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True)
 
@@ -166,6 +204,14 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Устанавливаем состояние ожидания сообщения от пользователя
         context.user_data["state"] = "WAITING_FOR_SUPPORT_MESSAGE"
         context.user_data["user_id"] = update.effective_user.id
+    
+    elif text == "🎁 Моя реферальная ссылка":
+        # Генерируем и отправляем реферальную ссылку
+        referral_link = generate_referral_link(user_id)
+        await update.message.reply_text(
+            f"🌟 Ваша реферальная ссылка: {referral_link}\n\n"
+            "Приглашайте друзей и получайте 5000₽ за каждого, кто зарегистрируется по вашей ссылке! 🤑"
+        )
 
     elif context.user_data.get("state") == "WAITING_FOR_SUPPORT_MESSAGE":
         if text == "❌ Отмена":
