@@ -216,3 +216,28 @@ async def admin_get_user_info(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     except (IndexError, ValueError):
         await update.message.reply_text("❌ Использование: /user_info <user_id>")
+
+# Команда для отображения всех команд администратора
+async def admin_commands_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
+        await update.message.reply_text("❌ У вас нет прав для выполнения этой команды.")
+        return
+
+    commands = (
+        "📜 *Список команд администратора:*\n\n"
+        "1. /add_balance <user_id> <amount> - Пополнить баланс пользователя.\n"
+        "   Пример: `/add_balance 12345 500`\n\n"
+        "2. /withdraw_funds <user_id> <amount> - Вывести средства пользователю.\n"
+        "   Пример: `/withdraw_funds 12345 500`\n\n"
+        "3. /verify_user <user_id> <0|1> - Изменить статус верификации пользователя.\n"
+        "   Пример: `/verify_user 12345 1`\n\n"
+        "4. /set_balance <user_id> <new_balance> - Установить новый баланс пользователю.\n"
+        "   Пример: `/set_balance 12345 1000`\n\n"
+        "5. /broadcast <message> - Отправить сообщение всем пользователям.\n"
+        "   Пример: `/broadcast Добрый день, мы рады вас видеть!`\n\n"
+        "6. /user_info <user_id> - Получить информацию о пользователе.\n"
+        "   Пример: `/user_info 12345`\n\n"
+    )
+
+    await update.message.reply_text(commands, parse_mode="Markdown")

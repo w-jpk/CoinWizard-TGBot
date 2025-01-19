@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 # Импортируем функции для работы с базой данных и обработки торгов
 from database import init_db, add_user, get_user, update_balance, process_trade, withdraw_funds, win, lose, dep_balance
 
-from admin_commands import admin_add_balance, admin_verify_user, admin_set_balance, admin_withdraw_funds, admin_broadcast_message, admin_get_user_info
+from admin_commands import admin_add_balance, admin_verify_user, admin_set_balance, admin_withdraw_funds, admin_broadcast_message, admin_get_user_info, admin_commands_list
 
 # Импортируем модуль для генерации случайных чисел
 import random
@@ -947,6 +947,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("withdraw_funds", admin_withdraw_funds))
     app.add_handler(CommandHandler("broadcast", admin_broadcast_message))
     app.add_handler(CommandHandler("user_info", admin_get_user_info))
+    app.add_handler(CommandHandler("help", admin_commands_list))
 
     # Запускаем бота в режиме polling (постоянное ожидание новых сообщений)
     app.run_polling()
