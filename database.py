@@ -18,7 +18,8 @@ def init_db():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,         
-            username TEXT,               
+            username TEXT,
+            verif BOOLEN DEFAULT false,               
             balance REAL DEFAULT 0,          
             operations_count INTEGER DEFAULT 0,  
             successful_operations INTEGER DEFAULT 0, 
@@ -71,6 +72,38 @@ def update_balance(user_id, amount):
     conn.commit()
     
     # Закрываем соединение с базой данных
+    conn.close()
+
+def win(user_id, amount):
+    conn = sqlite3.connect("bot.db")
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        UPDATE users 
+        SET balance = balance + ?, 
+            operations_count = operations_count + 1, 
+            successful_operations = successful_operations + 1 
+        WHERE id = ?
+    ''', (amount, user_id))
+    
+    conn.commit()
+    
+    conn.close()
+
+def lose(user_id, amount):
+    conn = sqlite3.connect("bot.db")
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        UPDATE users 
+        SET balance = balance - ?, 
+            operations_count = operations_count + 1, 
+            failed_operations = failed_operations + 1 
+        WHERE id = ?
+    ''', (amount, user_id))
+    
+    conn.commit()
+    
     conn.close()
 
 # Функция для получения информации о пользователе по его ID

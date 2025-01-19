@@ -5,7 +5,7 @@ from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardBu
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 # Импортируем функции для работы с базой данных и обработки торгов
-from database import init_db, add_user, get_user, update_balance, process_trade, withdraw_funds
+from database import init_db, add_user, get_user, update_balance, process_trade, withdraw_funds, win, lose
 
 # Импортируем модуль для генерации случайных чисел
 import random
@@ -13,11 +13,20 @@ import random
 # Используется для получения текущего курса криптовалют
 import requests
 
+import logging
+
+import asyncio
+
 # Импортируем токен бота из конфигурационного файла
 from config import BOT_TOKEN
 
 # Инициализация базы данных при запуске бота
 init_db()
+
+active_tasks = {}
+
+# Настраиваем логирование
+logging.basicConfig(level=logging.INFO)
 
 # Функция для получения текущего курса криптовалюты
 def get_crypto_price(symbol):
@@ -214,6 +223,13 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except ValueError:
             await update.message.reply_text("Пожалуйста, введите корректное числовое значение.")
 
+    elif context.user_data.get("state") == "WAITING_FOR_INVESTMENT":
+        await process_investment_amount(update, context)
+        return
+    
+    elif context.user_data.get("state") == "WAITING_FOR_DIRECTION":
+        await handle_graph_direction(update, context)
+        return
     
     else:
         # Если текст сообщения не распознан, отправляем сообщение с просьбой выбрать опцию
@@ -459,12 +475,37 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "delete_message":
     # Удаляем сообщение, на которое нажата кнопка
         await query.message.delete()
+
+    elif query.data == "graph_up":
+        await handle_graph_direction(update, context)
+        return
+    
+    elif query.data == "graph_stay":
+        await handle_graph_direction(update, context)
+        return
+    
+    elif query.data == "graph_down":
+        await handle_graph_direction(update, context)
+        return
+    
+    elif query.data == "time_10sec":
+        await handle_investment_time(update, context)
+        return
+    
+    elif query.data == "time_30sec":
+        await handle_investment_time(update, context)
+        return
+    
+    elif query.data == "time_1min":
+        await handle_investment_time(update, context)
+        return
         
     else:
-        await query.edit_message_caption(caption="❌ Ошибка: пользователь не найден.", parse_mode="Markdown")
+        await query.edit_message_text(text="❌ Ошибка: пользователь не найден.", parse_mode="Markdown")
         
 # Обработчик выбора криптовалюты
 async def handle_crypto_option(update: Update, context: ContextTypes.DEFAULT_TYPE, crypto_symbol, crypto_name):
+    print("handle_crypto_option вызван")
     query = update.callback_query
     user_id = query.from_user.id
     await query.answer()
@@ -474,10 +515,13 @@ async def handle_crypto_option(update: Update, context: ContextTypes.DEFAULT_TYP
     user = get_user(user_id)
 
     if price is not None and user:
+        context.user_data['crypto_symbol'] = crypto_symbol  # Сохраняем выбранную криптовалюту
+        context.user_data['crypto_name'] = crypto_name  # Сохраняем её имя
+
         text = (
             f"\U0001F4C8 *{crypto_name} Инвестиции*\n\n"
             f"\U0001F310 Введите сумму, которую хотите инвестировать.\n\n"
-            f"Минимальная сумма инвестиций: 100₽\n"
+            f"Минимальная сумма инвестиций: 1000₽\n"
             f"Курс {crypto_name}: {price}$\n\n"
             f"Ваш денежный баланс: {user[2]}₽"
         )
@@ -491,17 +535,218 @@ async def handle_crypto_option(update: Update, context: ContextTypes.DEFAULT_TYP
         # Отправляем сообщение с текстом и кнопками
         await query.edit_message_text(text=text, reply_markup=keyboard, parse_mode="Markdown")
 
+        # Сохраняем состояние ожидания ввода суммы
+        context.user_data['state'] = 'WAITING_FOR_INVESTMENT'
+        logging.info(f"Состояние пользователя обновлено: {context.user_data['state']}")
+
+    else:
+        # Сообщаем об ошибке, если цена недоступна или пользователь не найден
+        await query.edit_message_text("Ошибка: не удалось получить данные. Попробуйте позже.")
+
+# Обработчик для обработки текста суммы
+async def process_investment_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("process_investment_amount вызван")
+    user_id = update.message.from_user.id
+    user = get_user(user_id)  # Получаем данные пользователя
+
+    if context.user_data.get('state') == 'WAITING_FOR_INVESTMENT' and user:
+        try:
+            amount = float(update.message.text)
+
+            if amount < 1000:
+                await update.message.reply_text("❌ Сумма должна быть не менее 1000₽. Попробуйте снова.")
+            elif amount > user[2]:  # user[2] — баланс пользователя
+                await update.message.reply_text("❌ Сумма превышает ваш текущий баланс. Попробуйте снова.")
+            else:
+                # Сохраняем сумму в user_data для дальнейшего использования
+                context.user_data['investment_amount'] = amount
+
+                # Формируем текст следующего сообщения
+                text = (
+                    f"✅ Вы выбрали опцион {context.user_data['crypto_name']}\n"
+                    f"Сумма инвестиции: {amount}₽\n\n"
+                    f"Выберите, куда пойдет график:"
+                )
+
+                # Создаем инлайн-кнопки
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("Вверх - х2", callback_data="graph_up")],
+                    [InlineKeyboardButton("На месте - х10", callback_data="graph_stay")],
+                    [InlineKeyboardButton("Вниз - х2", callback_data="graph_down")]
+                ])
+
+                # Отправляем сообщение с текстом и кнопками
+                await update.message.reply_text(text, reply_markup=keyboard, parse_mode="Markdown")
+
+                # Сохраняем состояние для выбора направления графика
+                context.user_data['state'] = 'WAITING_FOR_DIRECTION'
+                logging.info(f"Состояние пользователя обновлено: {context.user_data['state']}")
+                logging.info(f"Данные пользователя сохранены: {context.user_data}")
+
+        except ValueError:
+            await update.message.reply_text("❌ Пожалуйста, введите корректное число.")
+    else:
+        await update.message.reply_text("Ошибка: не удалось обработать запрос.")
+
+# Обработчик выбора направления графика
+async def handle_graph_direction(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logging.info("handle_graph_direction вызван")
+    logging.info(f"Callback data получен: {update.callback_query.data}")
+    query = update.callback_query
+    await query.answer()
+
+    # Карта направлений графика
+    direction_map = {
+        "graph_up": "Вверх - х2",
+        "graph_stay": "На месте - х10",
+        "graph_down": "Вниз - х2"
+    }
+
+    # Получаем направление из callback_data
+    direction = direction_map.get(query.data)
+    if direction:
+        # Проверяем наличие данных в context.user_data
+        crypto_name = context.user_data.get('crypto_name')
+        investment_amount = context.user_data.get('investment_amount')
+
+        if not crypto_name or not investment_amount:
+            # Логируем состояние для отладки
+            print("Ошибка: отсутствуют данные об опционе или сумме.")
+            print("context.user_data:", context.user_data)
+
+            # Отправляем сообщение об ошибке
+            await query.edit_message_text("❌ Ошибка: данные пользователя недоступны. Начните заново.")
+            return
+
+        # Сохраняем выбранное направление
+        context.user_data['graph_direction'] = direction
+
+        # Формируем текст следующего сообщения
+        text = (
+            f"✅ Выбранный опцион: {crypto_name}\n"
+            f"Сумма инвестиции: {investment_amount}₽\n"
+            f"Направление графика: {direction}\n\n"
+            f"На какое время инвестировать?"
+        )
+
+        # Создаем кнопки для выбора времени
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("10 сек", callback_data="time_10sec")],
+            [InlineKeyboardButton("30 сек", callback_data="time_30sec")],
+            [InlineKeyboardButton("1 мин", callback_data="time_1min")]
+        ])
+
+        # Отправляем сообщение с текстом и кнопками
+        await query.edit_message_text(text=text, reply_markup=keyboard, parse_mode="Markdown")
+
+        # Устанавливаем состояние для выбора времени
+        context.user_data['state'] = 'WAITING_FOR_TIME'
+        logging.info(f"Состояние пользователя обновлено: {context.user_data['state']}")
+
+    else:
+        # Сообщаем об ошибке, если направление не найдено
+        await query.edit_message_text("❌ Ошибка: неизвестное направление графика.")
+
+async def handle_investment_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    # Карта времени в секундах
+    time_map = {
+        "time_10sec": 10,
+        "time_30sec": 30,
+        "time_1min": 60
+    }
+
+    # Получаем выбранное время
+    time_key = query.data
+    investment_time = time_map.get(time_key)
+
+    # Проверяем наличие необходимых данных
+    user_id = query.from_user.id
+    crypto_name = context.user_data.get('crypto_name')
+    investment_amount = context.user_data.get('investment_amount')
+    direction = context.user_data.get('graph_direction')
+
+    if not (crypto_name and investment_amount and direction and investment_time):
+        await query.edit_message_text("❌ Ошибка: данные пользователя недоступны. Начните заново.")
+        return
+
+    # Завершаем предыдущую задачу, если она существует
+    if user_id in active_tasks:
+        active_tasks[user_id].cancel()
+        del active_tasks[user_id]
+
+    # Формируем сообщение с таймером и графиком
+    text = (
+        f"✅ Выбранный опцион: {crypto_name}\n"
+        f"Сумма инвестиции: {investment_amount}₽\n"
+        f"Направление графика: {direction}\n"
+        f"Время: {investment_time} секунд\n\n"
+        f"График: [Начало колебания]"
+    )
+    await query.edit_message_text(text)
+
+    async def run_game():
+        try:
+            # Эмуляция таймера и графика
+            for i in range(investment_time):
+                # Генерация случайного колебания графика
+                movement = random.choice(["Вверх", "На месте", "Вниз"])
+                text = (
+                    f"✅ Выбранный опцион: {crypto_name}\n"
+                    f"Сумма инвестиции: {investment_amount}₽\n"
+                    f"Направление графика: {direction}\n"
+                    f"Время: {investment_time - i} секунд\n\n"
+                    f"График: {movement}"
+                )
+                await query.edit_message_text(text)
+                await asyncio.sleep(1)
+
+            # Определение результата
+            result = random.choice(["win", "lose"])
+            multiplier = 2 if direction in ["Вверх - х2", "Вниз - х2"] else 10
+
+            if result == "win":
+                winnings = investment_amount * multiplier
+                win(user_id, winnings)
+                result_text = (
+                    f"🎉 Вы выиграли!\n"
+                    f"Ваш выигрыш: {winnings}₽\n"
+                    f"Ваш новый баланс: {get_user(user_id)[2]}₽"
+                )
+            else:
+                lose(user_id, investment_amount)
+                result_text = (
+                    f"😢 Вы проиграли.\n"
+                    f"Сумма потери: {investment_amount}₽\n"
+                    f"Ваш новый баланс: {get_user(user_id)[2]}₽"
+                )
+            await query.edit_message_text(result_text)
+
+        except asyncio.CancelledError:
+            # Обработка отмены задачи
+            await query.edit_message_text("❌ Игра была прервана.")
+            return
+
+    # Запуск задачи и сохранение её ссылки
+    active_tasks[user_id] = asyncio.create_task(run_game())
+
 # Основная функция для запуска бота
 if __name__ == "__main__":
     # Создаем приложение бота с использованием токена
     app = Application.builder().token(BOT_TOKEN).build()
+    print("Бот запущен...")
 
     # Добавляем обработчики команд, текстовых сообщений и callback-запросов
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(CallbackQueryHandler(get_crypto_price))
-    app.add_handler(CallbackQueryHandler(handle_crypto_option))
+    app.add_handler(CallbackQueryHandler(handle_graph_direction, pattern="graph_.*"))
+    app.add_handler(CallbackQueryHandler(handle_crypto_option, pattern="^update_course_|cancel_crypto_option$"))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_investment_amount))
+    app.add_handler(CallbackQueryHandler(handle_investment_time, pattern="time_.*"))
 
     # Запускаем бота в режиме polling (постоянное ожидание новых сообщений)
     app.run_polling()
