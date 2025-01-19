@@ -5,7 +5,7 @@ from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardBu
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 # Импортируем функции для работы с базой данных и обработки торгов
-from database import init_db, add_user, get_user, update_balance, process_trade, withdraw_funds, win, lose
+from database import init_db, add_user, get_user, update_balance, process_trade, withdraw_funds, win, lose, dep_balance
 
 # Импортируем модуль для генерации случайных чисел
 import random
@@ -210,7 +210,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 # Обновляем баланс пользователя
                 user_id = update.effective_user.id
-                update_balance(user_id, amount)
+                dep_balance(user_id, amount)
                 
                 # Получаем обновленную информацию о пользователе
                 user_info = get_user(user_id)

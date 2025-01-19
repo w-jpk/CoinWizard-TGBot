@@ -19,13 +19,13 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,         
             username TEXT,
-            verif BOOLEN DEFAULT false,               
             balance REAL DEFAULT 0,          
             operations_count INTEGER DEFAULT 0,  
             successful_operations INTEGER DEFAULT 0, 
             failed_operations INTEGER DEFAULT 0,  
             conclusions INTEGER DEFAULT 0,  
-            total_withdrawn REAL DEFAULT 0  
+            total_withdrawn REAL DEFAULT 0,
+            verif BOOLEN DEFAULT false
         )
     ''')
     
@@ -52,6 +52,24 @@ def add_user(user_id, username):
     
     # Закрываем соединение с базой данных
     conn.close()
+
+def dep_balance(user_id, amount):
+    # Устанавливаем соединение с базой данных
+    conn = sqlite3.connect("bot.db")
+    cursor = conn.cursor()
+    
+    # Обновляем баланс пользователя, увеличиваем счетчик операций и успешных операций
+    cursor.execute('''
+        UPDATE users 
+        SET balance = balance + ?
+        WHERE id = ?
+    ''', (amount, user_id))
+    
+    # Фиксируем изменения в базе данных
+    conn.commit()
+    
+    # Закрываем соединение с базой данных
+    conn.close() 
 
 # Функция для обновления баланса пользователя
 def update_balance(user_id, amount):
