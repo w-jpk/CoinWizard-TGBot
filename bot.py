@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 # Импортируем функции для работы с базой данных и обработки торгов
 from database import init_db, add_user, get_user, update_balance, process_trade, withdraw_funds, win, lose, dep_balance
 
-from admin_commands import admin_add_balance, admin_verify_user, admin_set_balance
+from admin_commands import admin_add_balance, admin_verify_user, admin_set_balance, admin_withdraw_funds
 
 # Импортируем модуль для генерации случайных чисел
 import random
@@ -86,7 +86,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"💻 Личный кабинет:\n\n"
                 f"➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
                 f"📑 Верификация: {verification_status}\n"
-                f"🗄 ID: {user[0]}\n"
+                f"🗄 ID: `{user[0]}`\n"
                 f"💵 Баланс: {user[2]}₽\n"
                 f"➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
                 f"ℹ️ Статистика пользователя:\n"
@@ -181,27 +181,50 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Отправляем сообщение с текстом и кнопками
         await update.message.reply_text(options_text, reply_markup=keyboard, parse_mode="Markdown")
         
-    elif context.user_data.get("awaiting_withdrawal"):
+    elif context.user_data.get("state") == "WAITING_FOR_WITHDRAWAL_AMOUNT":
         try:
             amount = float(text)  # Преобразуем введенный текст в число
             if amount < 1000:
                 await update.message.reply_text("❌ Минимальная сумма вывода: 1000₽.")
             else:
-                # Пытаемся выполнить вывод средств
-                success = withdraw_funds(user_id, amount)
-                if success:
-                    # Сообщение об успешном выводе
-                    await update.message.reply_text(f"✅ Вывод {amount}₽ успешно выполнен!")
-                else:
-                    # Сообщение о недостатке средств
-                    await update.message.reply_text("❌ Недостаточно средств на балансе.")
-                    
+                # Сохраняем сумму и устанавливаем состояние ожидания реквизитов
+                context.user_data["withdrawal_amount"] = amount
+                context.user_data["state"] = "WAITING_FOR_WITHDRAWAL_DETAILS"
+                await update.message.reply_text(
+                    "Введите реквизиты для перевода (номер карты, счёта или другие данные)."
+                )
         except ValueError:
             await update.message.reply_text("❌ Введите корректную сумму.")
-        
-        # Сбрасываем состояние "ожидание ввода суммы вывода"
-        context.user_data["awaiting_withdrawal"] = False
-        return  # Важно: завершаем выполнение, чтобы не перейти к другим условиям
+
+    elif context.user_data.get("state") == "WAITING_FOR_WITHDRAWAL_DETAILS":
+        # Получаем реквизиты от пользователя
+        if text:
+            amount = context.user_data.get("withdrawal_amount")
+            user_id = update.effective_user.id
+
+            # Отправляем реквизиты и сумму администратору
+            admin_id = check  # Укажите ID администратора
+            await context.bot.send_message(
+                chat_id=admin_id,
+                text=(
+                    f"🔔 Новый запрос на вывод средств:\n\n"
+                    f"ID пользователя: {user_id}\n"
+                    f"Сумма: {amount:.2f}₽\n"
+                    f"Реквизиты: {text}"
+                )
+            )
+
+            # Уведомляем пользователя
+            await update.message.reply_text(
+                "✅ Ваш запрос на вывод средств отправлен администратору. Он будет обработан в ближайшее время."
+            )
+
+            # Сбрасываем состояние
+            context.user_data["state"] = None
+            context.user_data.pop("withdrawal_amount", None)
+        else:
+            await update.message.reply_text("❌ Пожалуйста, введите реквизиты для перевода.")
+
     
     # СТАРАЯ ВЕРСИЯ ПОПОЛНЕНИЯ
     # elif context.user_data.get("state") == "WAITING_FOR_AMOUNT":
@@ -322,11 +345,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = "💳 *Выберите вариант пополнения баланса:*"
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("Пополнить через банковскую карту", callback_data="deposit_card")],
-            [InlineKeyboardButton("Пополнить криптовалютой", callback_data="deposit_crypto")],
-            [InlineKeyboardButton("Ввести промокод", callback_data="deposit_promo")]
+            # [InlineKeyboardButton("Пополнить криптовалютой", callback_data="deposit_crypto")],
+            # [InlineKeyboardButton("Ввести промокод", callback_data="deposit_promo")],
+            [InlineKeyboardButton("Отмена", callback_data="cancel_deposit")]
         ])
         # Обновляем сообщение с новым текстом и кнопками
-        await query.edit_message_caption(caption=text, reply_markup=keyboard, parse_mode="Markdown")
+        if query.message.caption:
+            await query.edit_message_caption(caption=text, reply_markup=keyboard, parse_mode="Markdown")
+        else:
+            await query.edit_message_text(text=text, reply_markup=keyboard, parse_mode="Markdown")
+
+    elif query.data == "cancel_deposit":
+            # Обрабатываем отмену пополнения
+            cancel_text = "❌ Пополнение отменено. Если у вас возникли вопросы, обратитесь в техподдержку."
+            if query.message.caption:
+                await query.edit_message_caption(caption=cancel_text)
+            else:
+                await query.edit_message_text(text=cancel_text)
+            # Сбрасываем возможное состояние
+            context.user_data["state"] = None
 
     # Обработчик для кнопки "Пополнение через карту"
     elif query.data == "deposit_card":
@@ -442,7 +479,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
             # Сохраняем состояние "ожидание ввода суммы вывода"
-            context.user_data["awaiting_withdrawal"] = True
+            context.user_data["state"] = "WAITING_FOR_WITHDRAWAL_AMOUNT"
     
     
     elif query.data == "cancel_withdrawal":
@@ -453,8 +490,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         # Убираем состояние "ожидание ввода суммы вывода"
-        if "awaiting_withdrawal" in context.user_data:
-            del context.user_data["awaiting_withdrawal"]
+        if "WAITING_FOR_WITHDRAWAL_AMOUNT" in context.user_data:
+            del context.user_data["WAITING_FOR_WITHDRAWAL_AMOUNT"]
             
     elif query.data.startswith("update_course_"):
         crypto_symbol = query.data.split("_")[-1]
@@ -824,6 +861,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("add_balance", admin_add_balance))
     app.add_handler(CommandHandler("verify_user", admin_verify_user))
     app.add_handler(CommandHandler("set_balance", admin_set_balance))
+    app.add_handler(CommandHandler("withdraw_funds", admin_withdraw_funds))
 
     # Запускаем бота в режиме polling (постоянное ожидание новых сообщений)
     app.run_polling()
