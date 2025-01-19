@@ -141,3 +141,78 @@ async def admin_set_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Баланс пользователя с ID {target_id} установлен на {new_balance}₽.")
     except (IndexError, ValueError):
         await update.message.reply_text("❌ Использование: /set_balance <user_id> <new_balance>")
+
+# Команда для массовой рассылки сообщений
+async def admin_broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
+        await update.message.reply_text("❌ У вас нет прав для выполнения этой команды.")
+        return
+
+    try:
+        message_text = " ".join(context.args)  # Сообщение для рассылки
+
+        if not message_text:
+            await update.message.reply_text("❌ Сообщение для рассылки не может быть пустым.")
+            return
+
+        conn = sqlite3.connect("bot.db")
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT id FROM users")
+        user_ids = [row[0] for row in cursor.fetchall()]
+
+        conn.close()
+
+        sent_count = 0
+        for target_id in user_ids:
+            try:
+                await context.bot.send_message(
+                    chat_id=target_id,
+                    text=message_text
+                )
+                sent_count += 1
+            except Exception as e:
+                print(f"⚠️ Не удалось отправить сообщение пользователю с ID {target_id}: {e}")
+
+        await update.message.reply_text(f"✅ Сообщение успешно отправлено {sent_count} пользователям.")
+
+    except Exception as e:
+        await update.message.reply_text(f"❌ Ошибка при выполнении рассылки: {e}")
+
+# Команда для получения информации о пользователе
+async def admin_get_user_info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):
+        await update.message.reply_text("❌ У вас нет прав для выполнения этой команды.")
+        return
+
+    try:
+        target_id = int(context.args[0])
+        user = get_user(target_id)
+
+        if not user:
+            await update.message.reply_text("❌ Пользователь не найден.")
+            return
+
+        verification_status = "✅" if user[8] else "❌"
+
+        caption = (
+            f"💻 Информация о пользователе:\n\n"
+            f"➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
+            f"📑 Верификация: {verification_status}\n"
+            f"🗄 ID: `{user[0]}`\n"
+            f"💵 Баланс: {user[2]}₽\n"
+            f"➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
+            f"ℹ️ Статистика пользователя:\n"
+            f"┏ Всего сделок проведено: {user[3]}\n"
+            f"┣ Неудачных: {user[5]}\n"
+            f"┣ Удачных: {user[4]}\n"
+            f"┗ Выводов совершено {user[6]} на сумму {user[7]}₽\n"
+            f"➖➖➖➖➖➖➖➖➖➖➖➖➖➖"
+        )
+
+        await update.message.reply_text(caption, parse_mode="Markdown")
+
+    except (IndexError, ValueError):
+        await update.message.reply_text("❌ Использование: /user_info <user_id>")
