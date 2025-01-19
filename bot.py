@@ -155,13 +155,62 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "5. Относитесь к агенту поддержки с уважением. Не грубите ему и не дерзите, если заинтересованы в скорейшем разрешении Вашего вопроса."
         )
 
-        # Создаем инлайн-кнопку для перехода в чат с техподдержкой
+        # Создаем инлайн-кнопку "Отмена"
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📩 Написать", url="https://t.me/durov")] # Поменяйте ссылку на свой аккаунт
+            [InlineKeyboardButton("❌ Отмена", callback_data="cancel_support")]
         ])
 
         # Отправляем сообщение с текстом и кнопкой
         await update.message.reply_text(support_text, reply_markup=keyboard)
+
+        # Устанавливаем состояние ожидания сообщения от пользователя
+        context.user_data["state"] = "WAITING_FOR_SUPPORT_MESSAGE"
+        context.user_data["user_id"] = update.effective_user.id
+
+    elif context.user_data.get("state") == "WAITING_FOR_SUPPORT_MESSAGE":
+        if text == "❌ Отмена":
+            # Отмена обращения в техподдержку
+            await update.message.reply_text("❌ Обращение в техподдержку отменено.")
+            context.user_data["state"] = None
+        else:
+            # Отправка сообщения администратору
+            admin_id = check  # Укажите ID администратора
+            user_id = context.user_data.get("user_id")
+            message = f"🔔 Новое обращение в техподдержку от пользователя {user_id}: {text}"
+
+            if update.message.photo:
+                photo = update.message.photo[-1].file_id
+                await context.bot.send_photo(chat_id=admin_id, photo=photo, caption=message)
+            else:
+                await context.bot.send_message(chat_id=admin_id, text=message)
+
+            # Уведомляем пользователя, что сообщение отправлено
+            await update.message.reply_text("✅ Ваше сообщение отправлено в техподдержку. Ожидайте ответ.")
+            context.user_data["state"] = "WAITING_FOR_SUPPORT_RESPONSE"
+
+    elif context.user_data.get("state") == "WAITING_FOR_SUPPORT_RESPONSE":
+        # Обработчик ответа администратора через reply
+        if update.message.reply_to_message:
+            try:
+                # Извлекаем ID пользователя из сохраненного состояния
+                target_user_id = context.user_data.get("user_id")
+                if not target_user_id:
+                    await update.message.reply_text("❌ Ошибка: не удалось определить пользователя.")
+                    return
+
+                response = update.message.text
+
+                await context.bot.send_message(
+                    chat_id=target_user_id,
+                    text=f"Ответ от техподдержки:\n\n{response}"
+                )
+                await update.message.reply_text("✅ Ответ пользователю отправлен.")
+
+                # Сбрасываем состояние
+                context.user_data["state"] = None
+                context.user_data.pop("user_id", None)
+            except Exception as e:
+                await update.message.reply_text(f"❌ Ошибка при отправке ответа пользователю: {e}")                                     
 
     elif text == "📊 Опционы":
         # Формируем текст с информацией о опционах
@@ -691,6 +740,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     elif query.data == "time_1min":
         await handle_investment_time(update, context)
+        return
+    
+    elif query.data == "cancel_support":
+        await query.message.reply_text("❌ Обращение в техподдержку отменено.")
+        context.user_data["state"] = None
         return
         
     else:
