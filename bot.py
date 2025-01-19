@@ -20,7 +20,7 @@ import logging
 import asyncio
 
 # Импортируем токен бота из конфигурационного файла
-from config import BOT_TOKEN
+from config import BOT_TOKEN, check
 
 # Инициализация базы данных при запуске бота
 init_db()
@@ -202,32 +202,99 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Сбрасываем состояние "ожидание ввода суммы вывода"
         context.user_data["awaiting_withdrawal"] = False
         return  # Важно: завершаем выполнение, чтобы не перейти к другим условиям
+    
+    # СТАРАЯ ВЕРСИЯ ПОПОЛНЕНИЯ
+    # elif context.user_data.get("state") == "WAITING_FOR_AMOUNT":
+    #     try:
+    #         # Получаем сумму от пользователя
+    #         amount = float(update.message.text)
+            
+    #         # Проверка на минимальную сумму
+    #         if amount < 5000:
+    #             await update.message.reply_text("Сумма должна быть не меньше 5000 руб. Попробуйте снова.")
+    #         elif amount <= 0:
+    #             await update.message.reply_text("Сумма должна быть больше нуля. Попробуйте снова.")
+    #         else:
+    #             # Обновляем баланс пользователя
+    #             user_id = update.effective_user.id
+    #             dep_balance(user_id, amount)
+                
+    #             # Получаем обновленную информацию о пользователе
+    #             user_info = get_user(user_id)
+    #             await update.message.reply_text(
+    #                 f"Баланс успешно пополнен на {amount:.2f} руб.\n"
+    #                 f"Ваш текущий баланс: {user_info[2]:.2f} руб."
+    #             )
+    #             context.user_data["state"] = None  # Сбрасываем состояние
+
+    #     except ValueError:
+    #         await update.message.reply_text("Пожалуйста, введите корректное числовое значение.")
 
     elif context.user_data.get("state") == "WAITING_FOR_AMOUNT":
         try:
             # Получаем сумму от пользователя
             amount = float(update.message.text)
-            
+
             # Проверка на минимальную сумму
             if amount < 5000:
                 await update.message.reply_text("Сумма должна быть не меньше 5000 руб. Попробуйте снова.")
             elif amount <= 0:
                 await update.message.reply_text("Сумма должна быть больше нуля. Попробуйте снова.")
             else:
-                # Обновляем баланс пользователя
+                # Генерируем ID пользователя и комментарий к переводу
                 user_id = update.effective_user.id
-                dep_balance(user_id, amount)
-                
-                # Получаем обновленную информацию о пользователе
-                user_info = get_user(user_id)
+
+                # Отправляем реквизиты для перевода
                 await update.message.reply_text(
-                    f"Баланс успешно пополнен на {amount:.2f} руб.\n"
-                    f"Ваш текущий баланс: {user_info[2]:.2f} руб."
+                    f"Для пополнения переведите {amount:.2f} руб. на следующие реквизиты:\n\n"
+                    f"Счёт: `4100 1234 5678 9012`\n"
+                    f"Банк: АО 'Банк Пример'\n"
+                    f"Комментарий к переводу: `{user_id}`\n\n"
+                    "После перевода, пожалуйста, отправьте скриншот чека в этот чат.",
+                    parse_mode="Markdown"
                 )
-                context.user_data["state"] = None  # Сбрасываем состояние
+
+                # Сохраняем сумму и устанавливаем ожидание скриншота
+                context.user_data["amount"] = amount
+                context.user_data["state"] = "WAITING_FOR_RECEIPT"
 
         except ValueError:
             await update.message.reply_text("Пожалуйста, введите корректное числовое значение.")
+
+    elif context.user_data.get("state") == "WAITING_FOR_RECEIPT":
+        if update.message.photo:
+            # Получаем скриншот от пользователя
+            photo = update.message.photo[-1]  # Берём последнюю фотографию (лучшего качества)
+            file_id = photo.file_id
+
+            # Отправляем скриншот администратору
+            admin_id = check # Замените на ID администратора
+            amount = context.user_data.get("amount")
+            user_id = update.effective_user.id
+
+            await context.bot.send_photo(
+                chat_id=admin_id,
+                photo=file_id,
+                caption=(
+                    f"Новая транзакция на пополнение\n\n"
+                    f"ID пользователя: `{user_id}`\n"
+                    f"Сумма: {amount:.2f} руб.\n"
+                    f"Скриншот чека приложен."
+                ),
+                parse_mode="Markdown"
+            )
+
+            # Уведомляем пользователя
+            await update.message.reply_text(
+                "Транзакция в обработке. Мы уведомим вас, как только деньги поступят на счет. Обычно это занимает от 2 до 60 минут."
+            )
+
+            # Сбрасываем состояние
+            context.user_data["state"] = None
+            context.user_data.pop("amount", None)
+        else:
+            # Если сообщение не содержит фото
+            await update.message.reply_text("Пожалуйста, отправьте скриншот чека.")
 
     elif context.user_data.get("state") == "WAITING_FOR_INVESTMENT":
         await process_investment_amount(update, context)
@@ -747,6 +814,7 @@ if __name__ == "__main__":
     # Добавляем обработчики команд, текстовых сообщений и callback-запросов
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
+    app.add_handler(MessageHandler(filters.PHOTO, message_handler))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(CallbackQueryHandler(get_crypto_price))
     app.add_handler(CallbackQueryHandler(handle_graph_direction, pattern="graph_.*"))
