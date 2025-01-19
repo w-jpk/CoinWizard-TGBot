@@ -102,7 +102,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("💳 Пополнить", callback_data="replenish"), InlineKeyboardButton("🏦 Вывести", callback_data="withdraw")],
                 [InlineKeyboardButton("🗃 Верификация", callback_data="verify"), InlineKeyboardButton("⚙️ Настройки", callback_data="settings")],
-                [InlineKeyboardButton("Мои активы", callback_data="my_assets")]
+                # [InlineKeyboardButton("Мои активы", callback_data="my_assets")]
             ])
 
             # Отправляем изображение с текстом и инлайн-кнопками
@@ -483,6 +483,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Получаем данные о пользователе
         user = get_user(user_id)
         if user:
+            # Проверяем, верифицирован ли пользователь
+            if not user[8]:
+                await query.message.reply_text(
+                    "❌ Ваш аккаунт не верифицирован. Пройдите верификацию, чтобы воспользоваться выводом средств."
+                )
+                return
+
             # Формируем сообщение с запросом суммы вывода
             text = (
                 f"💸 Введите сумму вывода:\n\n"
@@ -503,8 +510,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
             # Сохраняем состояние "ожидание ввода суммы вывода"
-            context.user_data["state"] = "WAITING_FOR_WITHDRAWAL_AMOUNT"
-    
+            context.user_data["state"] = "WAITING_FOR_WITHDRAWAL_AMOUNT"    
     
     elif query.data == "cancel_withdrawal":
     # Отменяем вывод
