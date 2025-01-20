@@ -26,7 +26,8 @@ def init_db():
             conclusions INTEGER DEFAULT 0,  
             total_withdrawn REAL DEFAULT 0,
             verif BOOLEN DEFAULT false,
-            referral_status BOOLEN DEFAULT false
+            referral_status BOOLEN DEFAULT false,
+            banned BOOLEN DEFAULT false
         )
     ''')
     
@@ -243,3 +244,49 @@ def update_user_referral_status(user_id, bool):
     
     # Закрываем соединение с базой данных
     conn.close() 
+
+def banned(user_id):
+    try:
+        # Устанавливаем соединение с базой данных
+        conn = sqlite3.connect("bot.db")
+        cursor = conn.cursor()
+
+        # Обновляем статус блокировки пользователя
+        cursor.execute('''
+            UPDATE users 
+            SET banned = true
+            WHERE id = ?
+        ''', (user_id,))
+
+        # Фиксируем изменения в базе данных
+        conn.commit()
+
+    except sqlite3.Error as e:
+        print(f"Ошибка базы данных: {e}")
+
+    finally:
+        # Закрываем соединение с базой данных
+        conn.close()
+
+def unbanned(user_id):
+    try:
+        # Устанавливаем соединение с базой данных
+        conn = sqlite3.connect("bot.db")
+        cursor = conn.cursor()
+
+        # Обновляем статус блокировки пользователя
+        cursor.execute('''
+            UPDATE users 
+            SET banned = false
+            WHERE id = ?
+        ''', (user_id,))
+
+        # Фиксируем изменения в базе данных
+        conn.commit()
+
+    except sqlite3.Error as e:
+        print(f"Ошибка базы данных: {e}")
+
+    finally:
+        # Закрываем соединение с базой данных
+        conn.close()
