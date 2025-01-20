@@ -1,6 +1,6 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from database import dep_balance, get_user, withdraw_funds
+from database import dep_balance, get_user, withdraw_funds, banned, unbanned
 import sqlite3
 import config
 
@@ -238,6 +238,85 @@ async def admin_commands_list(update: Update, context: ContextTypes.DEFAULT_TYPE
         "Пример: `/broadcast Добрый день, мы рады вас видеть!`\n\n"
         "6. /user\_info <user\_id> - Получить информацию о пользователе.\n"
         "Пример: `/user_info 12345`\n\n"
+        "7. /banned <user\_id> - Заблокировать пользователя.\n"
+        "Пример: `/banned 12345`\n\n"
+        "8. /unbanned <user\_id> - Раблокировать пользователя.\n"
+        "Пример: `/unbanned 12345`\n\n"
     )
 
     await update.message.reply_text(commands, parse_mode="Markdown")
+
+async def admin_banned_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):  # Предполагаем, что is_admin возвращает True/False
+        await update.message.reply_text("❌ У вас нет прав для выполнения этой команды.")
+        return
+
+    try:
+        target_id = int(context.args[0])  # Получаем целевой ID из аргументов команды
+        if not user_exists(target_id):  # Проверяем, существует ли пользователь
+            await update.message.reply_text(f"❌ Пользователь с ID {target_id} не найден.")
+            return
+
+        banned(target_id)
+
+        # Уведомление администратора
+        await update.message.reply_text(f"✅ Пользователь с ID {target_id} заблокирован.")
+
+        # Уведомление пользователя
+        try:
+            await context.bot.send_message(
+                chat_id=target_id,
+                text="❌ Вы были заблокированы администратором."
+            )
+        except Exception as e:
+            await update.message.reply_text(f"⚠️ Не удалось отправить уведомление пользователю с ID {target_id}: {e}")
+
+    except (IndexError, ValueError):
+        await update.message.reply_text("❌ Использование: /banned <user_id>")
+
+async def admin_unbanned_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if not await is_admin(user_id):  # Предполагаем, что is_admin возвращает True/False
+        await update.message.reply_text("❌ У вас нет прав для выполнения этой команды.")
+        return
+
+    try:
+        target_id = int(context.args[0])  # Получаем целевой ID из аргументов команды
+        if not user_exists(target_id):  # Проверяем, существует ли пользователь
+            await update.message.reply_text(f"❌ Пользователь с ID {target_id} не найден.")
+            return
+
+        unbanned(target_id)
+
+        # Уведомление администратора
+        await update.message.reply_text(f"✅ Пользователь с ID {target_id} разблокирован.")
+
+        # Уведомление пользователя
+        try:
+            await context.bot.send_message(
+                chat_id=target_id,
+                text="✅ Вы были разблокированы администратором."
+            )
+        except Exception as e:
+            await update.message.reply_text(f"⚠️ Не удалось отправить уведомление пользователю с ID {target_id}: {e}")
+
+    except (IndexError, ValueError):
+        await update.message.reply_text("❌ Использование: /unbanned <user_id>")
+
+def user_exists(user_id):
+    try:
+        conn = sqlite3.connect("bot.db")
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT 1 FROM users WHERE id = ?", (user_id,))
+        result = cursor.fetchone()
+
+        return result is not None
+
+    except sqlite3.Error as e:
+        print(f"Ошибка базы данных: {e}")
+        return False
+
+    finally:
+        conn.close()
