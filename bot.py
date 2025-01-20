@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 # Импортируем функции для работы с базой данных и обработки торгов
 from database import init_db, add_user, get_user, update_balance, process_trade, withdraw_funds, win, lose, dep_balance, update_user_referral_status
 
-from admin_commands import admin_add_balance, admin_verify_user, admin_set_balance, admin_withdraw_funds, admin_broadcast_message, admin_get_user_info, admin_commands_list
+from admin_commands import admin_add_balance, admin_verify_user, admin_set_balance, admin_withdraw_funds, admin_broadcast_message, admin_get_user_info, admin_commands_list, admin_banned_user, admin_unbanned_user
 
 # Импортируем модуль для генерации случайных чисел
 import random
@@ -62,11 +62,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         update_user_referral_status(user.id, False)  # Устанавливаем реферальный статус явно
         user_data = get_user(user.id)  # Повторно получаем данные после добавления
 
-    # Проверяем, заблокирован ли пользователь
-    if user_data[10]:  # Если значение user[10] True, пользователь заблокирован
-        await update.message.reply_text("❌ Ваш аккаунт заблокирован. Обратитесь в поддержку для выяснения причин.")
-        return
-    
     # Проверяем, есть ли реферальный код
     if args and args[0].startswith("ref_"):
         referrer_id = int(args[0].split("_")[1])
@@ -139,7 +134,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"💻 Личный кабинет:\n\n"
                 f"➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
                 f"📑 Верификация: {verification_status}\n"
-                f"🗄 ID: `{user[0]}`\n"
+                f"🗄 ID: `{user[0]}` - нажмите чтобы скопировать\n"
                 f"💵 Баланс: {user[2]}₽\n"
                 f"➖➖➖➖➖➖➖➖➖➖➖➖➖➖\n"
                 f"ℹ️ Статистика пользователя:\n"
@@ -208,7 +203,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "2. Описывайте проблему своими словами, но как можно подробнее.\n"
             "3. Если возможно, прикрепите скриншот, на котором видно, в чём заключается Ваша проблема.\n"
             "4. Пришлите Ваш ID личного кабинета, дабы ускорить решение проблемы.\n"
-            "5. Относитесь к агенту поддержки с уважением. Не грубите ему и не дерзите, если заинтересованы в скорейшем разрешении Вашего вопроса."
+            "5. Относитесь к агенту поддержки с уважением. Не грубите ему и не дерзите, если заинтересованы в скорейшем разрешении Вашего вопроса.\n\n"
+            "Опишите свою проблему под данным сообщением."
         )
 
         # Создаем инлайн-кнопку "Отмена"
@@ -497,7 +493,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user_id = query.from_user.id
     await query.answer()  # Подтверждаем получение callback-запроса
-    
+
     # Обрабатываем различные callback_data
     if query.data == "replenish":
         # Формируем текст и кнопки для пополнения баланса
@@ -1102,6 +1098,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("broadcast", admin_broadcast_message))
     app.add_handler(CommandHandler("user_info", admin_get_user_info))
     app.add_handler(CommandHandler("help", admin_commands_list))
+    app.add_handler(CommandHandler("banned", admin_banned_user))
+    app.add_handler(CommandHandler("unbanned", admin_unbanned_user))
 
     # Запускаем бота в режиме polling (постоянное ожидание новых сообщений)
     app.run_polling()
