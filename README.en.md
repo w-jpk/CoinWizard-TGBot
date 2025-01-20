@@ -179,4 +179,5 @@ CoinWizard_TGBot/
   - Referral system moved to "🔷 About the service";
   - Added new cryptocurrencies;
   - Added functionality for processing cryptocurrencies;
-  - Changes have been made to the game.
+  - Changes have been made to the game;
+  - Updated referral system: new user will not receive anything, but the author of the link will receive 1,000₽ on the balance.
