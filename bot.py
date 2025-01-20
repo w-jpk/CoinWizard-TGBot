@@ -282,6 +282,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("BNB", callback_data="option_bnb"), InlineKeyboardButton("XRP", callback_data="option_xrp")],
             [InlineKeyboardButton("ADA", callback_data="option_ada"), InlineKeyboardButton("SOL", callback_data="option_sol")],
             [InlineKeyboardButton("DOGE", callback_data="option_doge"), InlineKeyboardButton("DOT", callback_data="option_dot")],
+            [InlineKeyboardButton("TON", callback_data="option_ton"), InlineKeyboardButton("TRUMP", callback_data="option_trump")],
         ])
 
         # Отправляем сообщение с текстом и кнопками
@@ -672,6 +673,30 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     elif query.data == "option_eth":
         await handle_crypto_option(update, context, "ethereum", "ETHEREUM")
+
+    elif query.data == "option_bnb":
+        await handle_crypto_option(update, context, "binancecoin", "BINANCE COIN")
+        
+    elif query.data == "option_xrp":
+        await handle_crypto_option(update, context, "ripple", "XRP")
+        
+    elif query.data == "option_ada":
+        await handle_crypto_option(update, context, "cardano", "CARDANO")
+        
+    elif query.data == "option_sol":
+        await handle_crypto_option(update, context, "solana", "SOLANA")
+        
+    elif query.data == "option_doge":
+        await handle_crypto_option(update, context, "dogecoin", "DOGECOIN")
+        
+    elif query.data == "option_dot":
+        await handle_crypto_option(update, context, "polkadot", "POLKADOT")
+
+    elif query.data == "option_ton":
+        await handle_crypto_option(update, context, "the-open-network", "TONCOIN")
+
+    elif query.data == "option_trump":
+        await handle_crypto_option(update, context, "official-trump", "OFFICIAL TRUMP")
         
     elif query.data == "verify":
         # Получаем данные о пользователе
@@ -1025,7 +1050,7 @@ async def handle_investment_time(update: Update, context: ContextTypes.DEFAULT_T
         active_tasks[user_id].cancel()
         del active_tasks[user_id]
 
-    # Формируем сообщение с таймером и графиком
+    # Отображаем начальное сообщение
     text = (
         f"✅ Выбранный опцион: {crypto_name}\n"
         f"Сумма инвестиции: {investment_amount}₽\n"
@@ -1035,38 +1060,65 @@ async def handle_investment_time(update: Update, context: ContextTypes.DEFAULT_T
     )
     await query.edit_message_text(text)
 
+    # Функция для расчета динамического движения
+    def calculate_movement(crypto_name):
+        base_movement = {
+            "BITCOIN": 400.0,
+            "ETHEREUM": 1.5,
+            "BINANCE COIN": 0.7,
+            "XRP": 0.09,
+            "CARDANO": 0.009,
+            "SOLANA": 1.3,
+            "DOGECOIN": 0.001,
+            "POLKADOT": 0.09,
+            "TONCOIN": 0.009,
+            "OFFICIAL TRUMP": 1.0,
+        }
+
+        # Получаем базовое движение для криптовалюты
+        base = base_movement.get(crypto_name, 200.0)
+
+        # Генерируем случайное движение на основе базового, делая его десятичным
+        movement = random.uniform(-base, base)
+        return round(movement, 4)  # Округляем до 4 знаков после запятой
+
+    # Асинхронная функция игры
     async def run_game():
         try:
-            # Эмуляция таймера и графика
             for i in range(investment_time):
-                # Генерация случайного колебания графика
-                movement = random.choice(["Вверх", "На месте", "Вниз"])
-                text = (
+                # Генерация движения графика
+                movement = calculate_movement(crypto_name)
+                updated_text = (
                     f"✅ Выбранный опцион: {crypto_name}\n"
                     f"Сумма инвестиции: {investment_amount}₽\n"
                     f"Направление графика: {direction}\n"
                     f"Время: {investment_time - i} секунд\n\n"
-                    f"График: {movement}"
+                    f"График: {movement}$"
                 )
-                await query.edit_message_text(text)
+                await query.edit_message_text(updated_text)
                 await asyncio.sleep(1)
 
-            # Определение результата
-            result = random.choice(["win", "lose"])
+            # Определение результата игры
+            if direction == "На месте - х10":
+                result = "lose"
+            else:
+                result = random.choices(["win", "lose"], weights=[30, 70], k=1)[0]
+
             multiplier = 2 if direction in ["Вверх - х2", "Вниз - х2"] else 10
 
             if result == "win":
                 winnings = investment_amount * multiplier
-                win(user_id, winnings)
+                dep_balance = winnings - investment_amount
+                win(user_id, dep_balance)
                 result_text = (
-                    f"🎉 Вы выиграли!\n"
-                    f"Ваш выигрыш: {winnings}₽\n"
+                    f"🎉 Поздравляем! Вы успешно инвестировали!\n"
+                    f"Ваш выигрыш составил: {winnings}₽\n"
                     f"Ваш новый баланс: {get_user(user_id)[2]}₽"
                 )
             else:
                 lose(user_id, investment_amount)
                 result_text = (
-                    f"😢 Вы проиграли.\n"
+                    f"😢 К сожалению, ваша инвестиция оказалась неудачной.\n"
                     f"Сумма потери: {investment_amount}₽\n"
                     f"Ваш новый баланс: {get_user(user_id)[2]}₽"
                 )

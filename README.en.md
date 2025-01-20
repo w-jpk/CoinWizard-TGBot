@@ -176,4 +176,7 @@ CoinWizard_TGBot/
   card = "4100 1234 5678 9012" - details for transfer
   ```
   - Updated [Warning](#important-warning);
-  - Referral system moved to "🔷 About the service".
+  - Referral system moved to "🔷 About the service";
+  - Added new cryptocurrencies;
+  - Added functionality for processing cryptocurrencies;
+  - Changes have been made to the game.
