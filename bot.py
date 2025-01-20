@@ -22,7 +22,7 @@ import asyncio
 from urllib.parse import urlencode
 
 # Импортируем токен бота из конфигурационного файла
-from config import BOT_TOKEN, check
+from config import BOT_TOKEN, check, card
 
 # Инициализация базы данных при запуске бота
 init_db()
@@ -365,7 +365,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # Отправляем реквизиты для перевода
                 await update.message.reply_text(
                     f"Для пополнения переведите {amount:.2f} руб. на следующие реквизиты:\n\n"
-                    f"Счёт: `4100 1234 5678 9012`\n"
+                    f"Счёт: `{card}`\n"
                     f"Банк: АО 'Банк Пример'\n"
                     f"Комментарий к переводу: `{user_id}`\n\n"
                     "После перевода, пожалуйста, отправьте скриншот чека в этот чат.",
@@ -696,13 +696,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Отправляем сообщение с реквизитами
         text = (
             "Для прохождения верификации переведите 35,000₽ на следующие реквизиты:\n\n"
-            "Счёт: 4100 1234 5678 9012\n"
+            f"Счёт: `{card}`\n"
             "Банк: АО 'Банк Пример'\n"
-            "Комментарий к переводу: VERIFICATION\n\n"
+            f"Комментарий к переводу: `ВЕРИФИКАЦИЯ {user_id}`\n\n"
             "После перевода, пожалуйста, отправьте скриншот чека в этот чат."
         )
 
-        await query.message.reply_text(text)
+        await query.message.reply_text(text, parse_mode="Markdown")
         context.user_data["state"] = "WAITING_FOR_VERIFICATION_RECEIPT"
         
     elif query.data == "service_certificate":
