@@ -104,76 +104,76 @@ CoinWizard_TGBot/
 
 - ### 01/12/2025
 
-- Bot added to GitHub;
-- Added:
+  - Bot added to GitHub;
+  - Added:
 
-- Cryptocurrency functionality;
-- "🗃 Verification" message;
-- Message "🔷 About the service";
-- Message "📜 Certificate";
-- Message "Service guarantee";
-- Message "📈 Network status".
+    - Cryptocurrency functionality;
+    - "🗃 Verification" message;
+    - Message "🔷 About the service";
+    - Message "📜 Certificate";
+    - Message "Service guarantee";
+    - Message "📈 Network status".
 
-- Chat link has been updated in the following places:
+  - Chat link has been updated in the following places:
 
-```
-elif text == "🧑🏻‍💻 Tech support":
-...the rest of the code...
-[InlineKeyboardButton("📩 Write", url="https://t.me/durov")] # Change the link to your account
+  ```
+  elif text == "🧑🏻‍💻 Tech support":
+  ...the rest of the code...
+  [InlineKeyboardButton("📩 Write", url="https://t.me/durov")] # Change the link to your account
 
-elif query.data == "verify":
-...the rest of the code...
-[InlineKeyboardButton("💬 Contact tech support", url="https://t.me/durov")] # Change the link to your account
-```
+  elif query.data == "verify":
+  ...the rest of the code...
+  [InlineKeyboardButton("💬 Contact tech support", url="https://t.me/durov")] # Change the link to your account
+  ```
 
 - ### 01/18/2025
 
-- Card top-up functionality has been updated. Now you can enter and replenish any amount.
+  - Card top-up functionality has been updated. Now you can enter and replenish any amount.
 
 - ### 01/19/2025
 
-- Added game functionality (Options -> Select option -> Enter amount -> Select chart direction -> Select time -> Wait for result);
-- Added verification item in the DB;
-- Changes made to the code;
-- Added commands for the administrator:
-```
-/add_balance User ID amount - command to replenish the user's balance.
-example: /add_balance 123456789 10000
+  - Added game functionality (Options -> Select option -> Enter amount -> Select chart direction -> Select time -> Wait for result);
+  - Added verification item in the DB;
+  - Changes made to the code;
+  - Added commands for the administrator:
+  ```
+  /add_balance User ID amount - command to replenish the user's balance.
+  example: /add_balance 123456789 10000
 
-/verify_user User ID 0 or 1 - command to verify the user.
-Example: /verify_user 123456789 1
+  /verify_user User ID 0 or 1 - command to verify the user.
+  Example: /verify_user 123456789 1
 
-/set_balance User ID amount - command to set a specific balance for the user.
-Example: /set_balance 123456789 10000
+  /set_balance User ID amount - command to set a specific balance for the user.
+  Example: /set_balance 123456789 10000
 
-/withdraw_funds User ID amount - command to withdraw the user's funds.
-Example: /withdraw_funds 123456789 10000
+  /withdraw_funds User ID amount - command to withdraw the user's funds.
+  Example: /withdraw_funds 123456789 10000
 
-/broadcast message - command to send an announcement to all users.
-Example: /broadcast important message!
+  /broadcast message - command to send an announcement to all users.
+  Example: /broadcast important message!
 
-/user_info User ID - command to get user data.
-Example: /user_info 123456789
-```
-- A new replenishment method has been added. Now replenishment occurs through administrator confirmation. How it works: The user selects to top up via a bank card -> The bot sends him the details and waits for a screenshot of the receipt -> After receiving the receipt, the bot sends this message to the administrator and the administrator checks the receipt, after which he tops up the user's account using the /add_balance command.
+  /user_info User ID - command to get user data.
+  Example: /user_info 123456789
+  ```
+  - A new replenishment method has been added. Now replenishment occurs through administrator confirmation. How it works: The user selects to top up via a bank card -> The bot sends him the details and waits for a screenshot of the receipt -> After receiving the receipt, the bot sends this message to the administrator and the administrator checks the receipt, after which he tops up the user's account using the /add_balance command.
 
-- A new withdrawal method has been added;
-- A system of promo codes has been added: PROMO100, PROMO500, PROMO1000;
-- Verification check for withdrawal of funds has been added;
-- The verification request has been updated;
-- The /help command has been added for the administration;
-- The mechanism for contacting technical support has been changed.
+  - A new withdrawal method has been added;
+  - A system of promo codes has been added: PROMO100, PROMO500, PROMO1000;
+  - Verification check for withdrawal of funds has been added;
+  - The verification request has been updated;
+  - The /help command has been added for the administration;
+  - The mechanism for contacting technical support has been changed.
 
 - ### 01/20/2025
 
-- A referral system has been added: the transferred user receives 1,000₽, the creator of the referral receives 5,000₽;
-- Moved the details to the config.py file, now the file looks like this:
-```
-# config.py
-BOT_TOKEN = "1234567890:ABCdefGhIJKlmNoPQRstuVWXyz"
-amd = [12345, 67890] - you can add multiple administrators
-check = -123456789 - chat where notifications are sent
-card = "4100 1234 5678 9012" - details for transfer
-```
-- Updated [Warning](#important-warning);
-- Referral system moved to "🔷 About the service".
+  - A referral system has been added: the transferred user receives 1,000₽, the creator of the referral receives 5,000₽;
+  - Moved the details to the config.py file, now the file looks like this:
+  ```
+  # config.py
+  BOT_TOKEN = "1234567890:ABCdefGhIJKlmNoPQRstuVWXyz"
+  amd = [12345, 67890] - you can add multiple administrators
+  check = -123456789 - chat where notifications are sent
+  card = "4100 1234 5678 9012" - details for transfer
+  ```
+  - Updated [Warning](#important-warning);
+  - Referral system moved to "🔷 About the service".
