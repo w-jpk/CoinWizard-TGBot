@@ -62,6 +62,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         update_user_referral_status(user.id, False)  # Устанавливаем реферальный статус явно
         user_data = get_user(user.id)  # Повторно получаем данные после добавления
 
+    # Проверяем, заблокирован ли пользователь
+    if user_data[10]:  # Если значение user[10] True, пользователь заблокирован
+        await update.message.reply_text("❌ Ваш аккаунт заблокирован. Обратитесь в поддержку для выяснения причин.")
+        return
+
     # Проверяем, есть ли реферальный код
     if args and args[0].startswith("ref_"):
         referrer_id = int(args[0].split("_")[1])
