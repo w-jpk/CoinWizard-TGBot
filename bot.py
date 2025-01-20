@@ -656,7 +656,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif query.data == "option_eth":
         await handle_crypto_option(update, context, "ethereum", "ETHEREUM")
         
-    if query.data == "verify":
+    elif query.data == "verify":
         # Получаем данные о пользователе
         user = get_user(user_id)
 
