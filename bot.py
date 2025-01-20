@@ -92,7 +92,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_keyboard = [
         ["💼 Личный Кабинет", "🔷 О сервисе"],
         ["🧑🏻‍💻 Тех.Поддержка", "📊 Опционы"],
-        ["🎁 Моя реферальная ссылка"]
     ]
     reply_markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True)
 
@@ -157,7 +156,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
     elif text == "🔷 О сервисе":
-        # Формируем текст с информацией о сервисе
         service_text = (
             "*CoinWizard* - централизованная биржа для торговли криптовалютой и фьючерсными активами.\n\n"
             "🔹 *Ведущие инновации*\n"
@@ -169,15 +167,19 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Благодаря простому пользовательскому интерфейсу *CoinWizard* прекрасно подходит для новичков. На платформе легко ориентироваться, что привлекает как продвинутых, так и начинающих трейдеров и инвесторов."
         )
 
-        # Создаем инлайн-кнопки
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("📖 Условия", callback_data="service_terms"), InlineKeyboardButton("📜 Сертификат", callback_data="service_certificate")],
             [InlineKeyboardButton("Гарантия сервиса", callback_data="service_guarantee"), InlineKeyboardButton("📈 Состояние сети", callback_data="service_network")],
             [InlineKeyboardButton("⚙️ Реферальная система", callback_data="service_referral")]
         ])
 
-        # Отправляем сообщение с текстом и кнопками
-        await update.message.reply_text(service_text, reply_markup=keyboard, parse_mode="Markdown")
+        if update.message:
+            await update.message.reply_text(service_text, reply_markup=keyboard, parse_mode="Markdown")
+        elif update.callback_query and update.callback_query.message:
+            await update.callback_query.message.reply_text(service_text, reply_markup=keyboard, parse_mode="Markdown")
+        else:
+            logging.error("Не удалось отправить сообщение: update.message и update.callback_query.message отсутствуют.")
+
         
     elif text == "🧑🏻‍💻 Тех.Поддержка":
         # Формируем текст для обращения в техподдержку
@@ -204,14 +206,6 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Устанавливаем состояние ожидания сообщения от пользователя
         context.user_data["state"] = "WAITING_FOR_SUPPORT_MESSAGE"
         context.user_data["user_id"] = update.effective_user.id
-    
-    elif text == "🎁 Моя реферальная ссылка":
-        # Генерируем и отправляем реферальную ссылку
-        referral_link = generate_referral_link(user_id)
-        await update.message.reply_text(
-            f"🌟 Ваша реферальная ссылка: {referral_link}\n\n"
-            "Приглашайте друзей и получайте 5000₽ за каждого, кто зарегистрируется по вашей ссылке! 🤑"
-        )
 
     elif context.user_data.get("state") == "WAITING_FOR_SUPPORT_MESSAGE":
         if text == "❌ Отмена":
@@ -792,6 +786,19 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("❌ Обращение в техподдержку отменено.")
         context.user_data["state"] = None
         return
+    
+    elif query.data == "service_referral":
+        referral_link = generate_referral_link(user_id)
+        response_text = (
+            f"🌟 Ваша реферальная ссылка: {referral_link}\n\n"
+            "Приглашайте друзей и получайте 5000₽ за каждого, кто зарегистрируется по вашей ссылке! 🤑"
+        )
+
+        if update.callback_query and update.callback_query.message:
+            await update.callback_query.message.reply_text(response_text)
+        else:
+            logging.error("Не удалось отправить реферальную ссылку: callback_query.message отсутствует.")
+
         
     else:
         await query.edit_message_text(text="❌ Ошибка: пользователь не найден.", parse_mode="Markdown")
